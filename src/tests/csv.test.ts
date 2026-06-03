@@ -49,6 +49,30 @@ describe("categorization and distribution fitting", () => {
     expect(paycheck?.type).toBe("income");
   });
 
+  it("respects the Exclusion column and detects account-to-account transfers", () => {
+    const csv = [
+      "Date,Account,Payee,Category,Exclusion,Recurring,Amount",
+      '"Jan 1, 2025",Checking,Employer,"Personal Income:Paycheck",no,yes,5000.00',
+      '"Jan 3, 2025",Checking,Landlord,"Home:Rent",no,yes,-2000.00',
+      '"Jan 4, 2025",Checking,Self,"Transfer",no,no,-500.00',
+      '"Jan 6, 2025",Brokerage,Buy,"Investment Income",no,no,200.00',
+      '"Jan 7, 2025",Checking,Self,"Brokerage",no,no,-300.00',
+      '"Jan 5, 2025",Checking,Bank,"Interest",yes,no,3.00',
+    ].join("\n");
+    const r = parseSimplifiCsv(csv);
+    expect(r.excludedCount).toBe(1); // the Exclusion=yes row is dropped
+    expect(r.columnMap.exclusion).toBe("Exclusion");
+    const summaries = summarizeTransactions(r.transactions);
+    const keywordTransfer = summaries.find((s) => s.category === "Transfer");
+    const accountNameTransfer = summaries.find((s) => s.category === "Brokerage");
+    const rent = summaries.find((s) => s.category === "Home:Rent");
+    expect(keywordTransfer?.isTransfer).toBe(true); // matched by keyword
+    expect(accountNameTransfer?.isTransfer).toBe(true); // category == an account name
+    expect(rent?.isTransfer).toBe(false);
+    // Simplifi's Recurring=yes flag marks rent/paycheck as recurring even over 1 month.
+    expect(rent?.recurring).toBe(true);
+  });
+
   it("fits a fixed distribution to a stable series and lognormal to a volatile one", () => {
     const stable = [1000, 1000, 1000, 1010, 990, 1000, 1000];
     expect(fitDistribution(stable, false).kind).toBe("fixed");

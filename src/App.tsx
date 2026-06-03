@@ -20,8 +20,18 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "compare", label: "Scenarios" },
 ];
 
+// An optional scenario may be injected into the page (e.g. a personalized build)
+// via window.__SCENARIO__. This keeps personal data in the local HTML only.
+declare global {
+  interface Window {
+    __SCENARIO__?: Scenario;
+  }
+}
+
 export default function App() {
-  const [scenario, setScenario] = useState<Scenario>(() => makeDefaultScenario());
+  const [scenario, setScenario] = useState<Scenario>(
+    () => (typeof window !== "undefined" && window.__SCENARIO__) || makeDefaultScenario(),
+  );
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);

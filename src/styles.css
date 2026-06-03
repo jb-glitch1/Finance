@@ -181,6 +181,7 @@ select:focus, input:focus { border-color: var(--accent); }
 .badge.expense { background: rgba(248,113,113,0.15); color: var(--bad); }
 .badge.fixed { background: rgba(129,140,248,0.15); color: var(--accent-2); }
 .badge.variable { background: rgba(251,191,36,0.15); color: var(--warn); }
+.badge.transfer { background: rgba(148,163,184,0.18); color: var(--muted); }
 
 /* Advisor */
 .advisor { display: flex; flex-direction: column; gap: 16px; }

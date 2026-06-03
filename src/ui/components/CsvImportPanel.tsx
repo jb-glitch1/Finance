@@ -25,9 +25,16 @@ export function CsvImportPanel({ scenario, onApply }: Props) {
   function ingest(text: string, label: string) {
     const parsed = parseSimplifiCsv(text);
     const summaries = summarizeTransactions(parsed.transactions);
-    setRows(summaries.map((s) => ({ ...s, include: true, spec: s.suggested })));
+    // Transfers / savings moves are off by default — they aren't spending or income.
+    setRows(summaries.map((s) => ({ ...s, include: !s.isTransfer, spec: s.suggested })));
     setWarnings(parsed.warnings);
-    setInfo(`${label}: ${parsed.rowCount} transactions across ${summaries[0]?.totalMonths ?? 0} months, ${summaries.length} categories. Columns: ${Object.values(parsed.columnMap).join(", ")}`);
+    const transfers = summaries.filter((s) => s.isTransfer).length;
+    setInfo(
+      `${label}: ${parsed.rowCount} transactions across ${summaries[0]?.totalMonths ?? 0} months, ${summaries.length} categories` +
+        (parsed.excludedCount ? ` · ${parsed.excludedCount} Simplifi-excluded rows skipped` : "") +
+        (transfers ? ` · ${transfers} transfer/savings categories detected and turned OFF (toggle on if any are real spending)` : "") +
+        `. Columns: ${Object.values(parsed.columnMap).join(", ")}`,
+    );
   }
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -94,7 +101,7 @@ export function CsvImportPanel({ scenario, onApply }: Props) {
             <div className="csv-row" key={r.category}>
               <input type="checkbox" checked={r.include} onChange={(e) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, include: e.target.checked } : x)))} />
               <span className="csv-cat">{r.category}</span>
-              <span className={`badge ${r.type}`}>{r.type}</span>
+              <span className={`badge ${r.isTransfer ? "transfer" : r.type}`}>{r.isTransfer ? "transfer" : r.type}</span>
               <span>{currency(r.monthlyMean)}</span>
               <span className={`badge ${r.recurring ? "fixed" : "variable"}`}>{r.recurring ? "recurring" : `variable (cov ${r.cov})`}</span>
               <DistributionEditor compact money value={r.spec} onChange={(spec) => setRows((rs) => rs.map((x, j) => (j === i ? { ...x, spec } : x)))} />

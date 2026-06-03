@@ -20,9 +20,38 @@ export interface CategorySummary {
   totalMonths: number;
   recurring: boolean;
   variability: "fixed" | "variable";
+  /** True if this looks like an account-to-account transfer / savings move, not
+   * real income or consumption — these should usually be EXCLUDED from the model. */
+  isTransfer: boolean;
   /** Annualized suggested distribution (the model works in annual dollars). */
   suggested: DistributionSpec;
   monthlySeries: { month: string; amount: number }[];
+}
+
+const TRANSFER_KEYWORDS = [
+  "transfer",
+  "credit card payment",
+  "card payment",
+  "cc payment",
+  "balance adjustment",
+  "payment/credit",
+  "venmo",
+  "zelle",
+  "withdrawal",
+  "deposit",
+];
+
+/**
+ * A category is treated as a transfer (not spending/income) when it matches an
+ * account name (Simplifi often labels transfers with the other account's name),
+ * or contains a transfer keyword. Transfers between your own accounts and savings
+ * contributions must not be modeled as expenses or they wildly distort the plan.
+ */
+function detectTransfer(category: string, accountNames: Set<string>): boolean {
+  const c = category.toLowerCase().trim();
+  const top = c.split(":")[0].trim();
+  if (accountNames.has(top) || accountNames.has(c)) return true;
+  return TRANSFER_KEYWORDS.some((k) => c.includes(k));
 }
 
 function monthKey(d: Date): string {
@@ -83,14 +112,25 @@ export function summarizeTransactions(transactions: Transaction[]): CategorySumm
   const totalMonths = months.size;
   const allMonths = [...months].sort();
 
-  // category -> month -> summed amount
+  // Account names are used to detect account-to-account transfers.
+  const accountNames = new Set<string>();
+  for (const t of transactions) if (t.account) accountNames.add(t.account.toLowerCase().trim());
+
+  // category -> month -> summed amount, plus a recurring-flag tally per category.
   const byCat = new Map<string, Map<string, number>>();
+  const recurringTally = new Map<string, { yes: number; total: number }>();
   for (const t of transactions) {
     const cat = t.category || "Uncategorized";
     if (!byCat.has(cat)) byCat.set(cat, new Map());
     const mk = monthKey(t.date);
     const map = byCat.get(cat)!;
     map.set(mk, (map.get(mk) ?? 0) + t.amount);
+    if (t.recurringFlag !== undefined) {
+      const tally = recurringTally.get(cat) ?? { yes: 0, total: 0 };
+      tally.total++;
+      if (t.recurringFlag) tally.yes++;
+      recurringTally.set(cat, tally);
+    }
   }
 
   const summaries: CategorySummary[] = [];
@@ -107,9 +147,13 @@ export function summarizeTransactions(transactions: Transaction[]): CategorySumm
     const cov = m > 0 ? s / m : 0;
     const frequency = presentMonths.length / totalMonths;
 
-    // Recurring: appears most months AND is stable month-to-month.
-    const recurring = frequency >= 0.66 && cov < 0.2;
+    // Recurring: trust Simplifi's flag when most transactions are flagged,
+    // otherwise fall back to the stability heuristic (frequent + steady).
+    const tally = recurringTally.get(category);
+    const flaggedRecurring = tally ? tally.yes / tally.total >= 0.5 : false;
+    const recurring = flaggedRecurring || (frequency >= 0.66 && cov < 0.2);
     const variability: "fixed" | "variable" = recurring ? "fixed" : "variable";
+    const isTransfer = detectTransfer(category, accountNames);
 
     summaries.push({
       category,
@@ -122,6 +166,7 @@ export function summarizeTransactions(transactions: Transaction[]): CategorySumm
       totalMonths,
       recurring,
       variability,
+      isTransfer,
       suggested: fitDistribution(magnitudes, recurring),
       monthlySeries: allMonths.map((mk) => ({ month: mk, amount: round(Math.abs(monthMap.get(mk) ?? 0), 2) })),
     });
