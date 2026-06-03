@@ -4,6 +4,9 @@
 import type { WorkerRequest, WorkerResponse } from "./sim.worker";
 import type { Scenario, SimulationResult } from "../engine/types";
 import type { OutcomeMetric, TornadoEntry } from "../engine/sensitivity";
+// Inline worker: bundled as a self-contained blob, so it works even when the
+// app is opened as a single local file (file://) with no server.
+import SimWorker from "./sim.worker.ts?worker&inline";
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -11,7 +14,11 @@ let nextId = 1;
 function getWorker(): Worker | null {
   if (typeof Worker === "undefined") return null;
   if (!worker) {
-    worker = new Worker(new URL("./sim.worker.ts", import.meta.url), { type: "module" });
+    try {
+      worker = new SimWorker();
+    } catch {
+      return null; // fall back to main-thread execution
+    }
   }
   return worker;
 }

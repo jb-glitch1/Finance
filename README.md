@@ -67,6 +67,22 @@ npm run build      # production build to dist/
 npm run preview    # preview the production build
 ```
 
+### Single-file build (no server, locked-down machines)
+
+To get **one self-contained `.html` file** you can just double-click to open in any
+browser — no install, no server, no terminal:
+
+```bash
+npm install
+npm run build:single   # → dist-single/index.html  (everything inlined)
+```
+
+Open `dist-single/index.html` directly. All JS/CSS — and the simulation Web
+Worker — are inlined into the page, and it works from `file://`. (If a browser
+blocks blob-URL workers on `file://`, the app automatically falls back to running
+the simulation on the main thread.) Nothing is uploaded; all computation and any
+CSV you load stay in the page.
+
 ### Quick start in the app
 1. The app loads with a realistic **Base plan** and runs automatically.
 2. Go to **Import CSV → Load sample Simplifi data** to see the full
