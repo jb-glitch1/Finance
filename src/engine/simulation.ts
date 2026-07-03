@@ -317,7 +317,9 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
       const initial = scenario.withdrawal.initialRate;
       if (rate > initial * (1 + band)) guardrailMultiplier *= 1 - adjust;
       else if (rate < initial * (1 - band)) guardrailMultiplier *= 1 + adjust;
-      guardrailMultiplier = Math.max(0.4, Math.min(1.5, guardrailMultiplier));
+      // Floor = the user's maximum tolerable lifestyle cut (default 60%).
+      const floor = 1 - Math.min(0.95, Math.max(0, scenario.withdrawal.maxSpendingCut ?? 0.6));
+      guardrailMultiplier = Math.max(floor, Math.min(1.5, guardrailMultiplier));
     }
 
     // ---- Execute the withdrawal ----

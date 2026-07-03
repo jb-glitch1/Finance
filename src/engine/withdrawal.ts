@@ -21,6 +21,13 @@ export interface WithdrawalParams {
   guardrailBand?: number;
   /** Spending adjustment when a guardrail is hit (e.g. 0.10 = 10% cut/raise). */
   guardrailAdjust?: number;
+  /**
+   * Maximum tolerable spending cut under guardrails, as a fraction of plan
+   * (0.25 = never live more than 25% below plan). Sets the multiplier floor at
+   * 1 − maxSpendingCut. Lower tolerance = fewer/shallower cuts but more ruin
+   * risk — the engine makes that trade visible rather than hiding it.
+   */
+  maxSpendingCut?: number;
   /** Real expected return used to build the VPW schedule (e.g. 0.03). */
   vpwReturn?: number;
 }
@@ -30,6 +37,7 @@ export const DEFAULT_WITHDRAWAL: WithdrawalParams = {
   initialRate: 0.04,
   guardrailBand: 0.2,
   guardrailAdjust: 0.1,
+  maxSpendingCut: 0.6,
   vpwReturn: 0.03,
 };
 

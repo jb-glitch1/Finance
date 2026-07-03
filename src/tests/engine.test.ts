@@ -109,6 +109,23 @@ describe("withdrawal strategy semantics", () => {
     expect(gk.terminalNetWorth[0]).toBeGreaterThan(fixed.terminalNetWorth[0] + 100_000);
   });
 
+  it("maxSpendingCut floors the guardrail: zero tolerance behaves like fixed-real", () => {
+    // With a 0% tolerable cut the multiplier can never drop below 1, so the
+    // unsustainable 8% draw must deplete exactly as fixed-real does — the
+    // slider trades lifestyle risk back into ruin risk, visibly.
+    const rigid = retiree("guardrails", "roth");
+    rigid.withdrawal.maxSpendingCut = 0;
+    const rigidRes = runSimulation(rigid);
+    expect(rigidRes.successProbability).toBe(0);
+    expect(rigidRes.lifestyleRisk.pAnyCut).toBe(0);
+    // A 30% tolerance caps the deepest cut at 30%.
+    const capped = retiree("guardrails", "roth");
+    capped.withdrawal.maxSpendingCut = 0.3;
+    const cappedRes = runSimulation(capped);
+    expect(cappedRes.lifestyleRisk.p90MaxDepth).toBeLessThanOrEqual(0.301);
+    expect(cappedRes.lifestyleRisk.p90MaxDepth).toBeGreaterThan(0.2);
+  });
+
   it("reports lifestyle risk: guardrail cuts are tracked, fixed-real shows none", () => {
     // The 8%-draw guardrails path is forced into deep, sustained cuts: the
     // multiplier ratchets down ~10%/yr until the withdrawal rate re-enters the
