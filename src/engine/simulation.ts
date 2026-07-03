@@ -323,37 +323,45 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
     // the multiplier genuinely cuts or raises lifestyle, which is the whole
     // point of the strategy.
     let cashIn = guaranteedCash + pulled.cashRaised;
-    let yearTax = tax.totalTax;
-    let cashOut = plannedSpend + debtService + yearTax;
+    let cashOut = plannedSpend + debtService + tax.totalTax;
     let surplus = cashIn - cashOut;
     if (surplus < 0) {
-      // Residual need (a VPW draw below expenses, or 2-pass gross-up remainder)
-      // must be funded by a further TAXED pull — never a tax-free side channel.
+      // Residual need (a VPW draw below expenses, or gross-up remainder) must
+      // be funded by further TAXED pulls — never a tax-free side channel.
+      // Each pull raises the tax bill, which raises the deficit, so iterate:
+      // the deficit shrinks geometrically (by ~the marginal rate) per pass.
+      // "Ran out" is flagged ONLY when accounts can't supply the cash asked —
+      // never on a small tax-convergence residual.
       const baseOrdinary = guaranteedOrdinary + pulled.ordinaryIncome;
       const baseGains = pulled.realizedGains;
-      const taxWithExtra = (w: WithdrawalOutcome) => {
-        const tSS = taxableSocialSecurity(ssBenefits, baseOrdinary + w.ordinaryIncome, status);
-        return computeTax({
+      let extraOrdinary = 0;
+      let extraGains = 0;
+      let extraTax = 0;
+      for (let iter = 0; iter < 8 && surplus < -1; iter++) {
+        const pull = withdrawFromAccounts(accounts, scenario.withdrawalOrder, -surplus);
+        cashIn += pull.cashRaised;
+        if (pull.cashRaised < -surplus - 1) {
+          // Accounts genuinely dry: insolvent this year.
+          if (ranOutAge === null) ranOutAge = age;
+          surplus = cashIn - cashOut;
+          break;
+        }
+        extraOrdinary += pull.ordinaryIncome;
+        extraGains += pull.realizedGains;
+        const tSS = taxableSocialSecurity(ssBenefits, baseOrdinary + extraOrdinary, status);
+        const t = computeTax({
           filingStatus: status,
-          ordinaryIncome: baseOrdinary + w.ordinaryIncome,
-          longTermGains: baseGains + w.realizedGains,
+          ordinaryIncome: baseOrdinary + extraOrdinary,
+          longTermGains: baseGains + extraGains,
           taxableSocialSecurity: tSS,
           numAge65Plus,
         });
-      };
-      let extraGross = -surplus;
-      for (let pass = 0; pass < 2; pass++) {
-        const dry = withdrawFromAccounts(accounts.map((a) => ({ ...a })), scenario.withdrawalOrder, extraGross);
-        extraGross = -surplus + Math.max(0, taxWithExtra(dry).totalTax - yearTax);
+        const newExtraTax = Math.max(0, t.totalTax - tax.totalTax);
+        cashOut += newExtraTax - extraTax;
+        extraTax = newExtraTax;
+        surplus = cashIn - cashOut;
       }
-      const extra = withdrawFromAccounts(accounts, scenario.withdrawalOrder, extraGross);
-      const incrementalTax = Math.max(0, taxWithExtra(extra).totalTax - yearTax);
-      totalTaxes += incrementalTax;
-      yearTax += incrementalTax;
-      cashIn += extra.cashRaised;
-      cashOut += incrementalTax;
-      surplus = cashIn - cashOut;
-      if (surplus < -1 && ranOutAge === null) ranOutAge = age;
+      totalTaxes += extraTax;
     }
     if (surplus > 0) {
       if (!retired) depositSavings(accounts, scenario.savingsAllocation, surplus);
