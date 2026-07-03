@@ -319,15 +319,45 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
     totalTaxes += tax.totalTax;
 
     // ---- Settle cash flow ----
-    const cashIn = guaranteedCash + pulled.cashRaised;
-    const cashOut = spending + debtService + tax.totalTax;
-    const surplus = cashIn - cashOut;
+    // The household consumes plannedSpend (NOT raw spending): under guardrails
+    // the multiplier genuinely cuts or raises lifestyle, which is the whole
+    // point of the strategy.
+    let cashIn = guaranteedCash + pulled.cashRaised;
+    let yearTax = tax.totalTax;
+    let cashOut = plannedSpend + debtService + yearTax;
+    let surplus = cashIn - cashOut;
+    if (surplus < 0) {
+      // Residual need (a VPW draw below expenses, or 2-pass gross-up remainder)
+      // must be funded by a further TAXED pull — never a tax-free side channel.
+      const baseOrdinary = guaranteedOrdinary + pulled.ordinaryIncome;
+      const baseGains = pulled.realizedGains;
+      const taxWithExtra = (w: WithdrawalOutcome) => {
+        const tSS = taxableSocialSecurity(ssBenefits, baseOrdinary + w.ordinaryIncome, status);
+        return computeTax({
+          filingStatus: status,
+          ordinaryIncome: baseOrdinary + w.ordinaryIncome,
+          longTermGains: baseGains + w.realizedGains,
+          taxableSocialSecurity: tSS,
+          numAge65Plus,
+        });
+      };
+      let extraGross = -surplus;
+      for (let pass = 0; pass < 2; pass++) {
+        const dry = withdrawFromAccounts(accounts.map((a) => ({ ...a })), scenario.withdrawalOrder, extraGross);
+        extraGross = -surplus + Math.max(0, taxWithExtra(dry).totalTax - yearTax);
+      }
+      const extra = withdrawFromAccounts(accounts, scenario.withdrawalOrder, extraGross);
+      const incrementalTax = Math.max(0, taxWithExtra(extra).totalTax - yearTax);
+      totalTaxes += incrementalTax;
+      yearTax += incrementalTax;
+      cashIn += extra.cashRaised;
+      cashOut += incrementalTax;
+      surplus = cashIn - cashOut;
+      if (surplus < -1 && ranOutAge === null) ranOutAge = age;
+    }
     if (surplus > 0) {
       if (!retired) depositSavings(accounts, scenario.savingsAllocation, surplus);
       else depositSavings(accounts, { taxable: 1, traditional: 0, roth: 0, cash: 0 }, surplus);
-    } else if (surplus < 0) {
-      const extra = withdrawFromAccounts(accounts, scenario.withdrawalOrder, -surplus);
-      if (extra.cashRaised < -surplus - 1 && ranOutAge === null) ranOutAge = age;
     }
 
     // ---- Apply market growth (end-of-year convention: withdrawals don't grow) ----

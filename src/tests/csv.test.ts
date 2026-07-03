@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseSimplifiCsv, parseAmount } from "../csv/parseSimplifi";
 import { summarizeTransactions, fitDistribution } from "../csv/categorize";
+import { theoreticalMean } from "../engine/distributions";
 import { SAMPLE_SIMPLIFI_CSV } from "../data/sampleSimplifi";
 
 describe("amount parsing robustness", () => {
@@ -71,6 +72,24 @@ describe("categorization and distribution fitting", () => {
     expect(rent?.isTransfer).toBe(false);
     // Simplifi's Recurring=yes flag marks rent/paycheck as recurring even over 1 month.
     expect(rent?.recurring).toBe(true);
+  });
+
+  it("annualizes sporadic categories by true yearly total, not per-active-month", () => {
+    // $600 of travel twice in a 12-month window must fit to ~$1,200/yr —
+    // not $7,200/yr (12 × the $600 average of active months only).
+    const rows = ["Date,Payee,Category,Amount,Account"];
+    for (let m = 1; m <= 12; m++) {
+      rows.push(`2025-${String(m).padStart(2, "0")}-05,Store,"Groceries",-100.00,Checking`);
+    }
+    rows.push('2025-03-10,Delta,"Travel",-600.00,Checking');
+    rows.push('2025-09-15,United,"Travel",-600.00,Checking');
+    const r = parseSimplifiCsv(rows.join("\n"));
+    const travel = summarizeTransactions(r.transactions).find((s) => s.category === "Travel")!;
+    const annualMean = theoreticalMean(travel.suggested)!;
+    expect(annualMean).toBeGreaterThan(700);
+    expect(annualMean).toBeLessThan(1800);
+    // Monthly mean shown in the UI is the true calendar-month average.
+    expect(travel.monthlyMean).toBeCloseTo(100, 0);
   });
 
   it("fits a fixed distribution to a stable series and lognormal to a volatile one", () => {

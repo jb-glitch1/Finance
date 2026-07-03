@@ -139,9 +139,12 @@ export function summarizeTransactions(transactions: Transaction[]): CategorySumm
     const overall = signedTotals.reduce((a, b) => a + b, 0);
     const type: "income" | "expense" = overall >= 0 ? "income" : "expense";
 
-    // Work in magnitudes (positive) for stats & fitting.
+    // Work in magnitudes (positive) for stats & fitting, over ALL months in the
+    // window — zero months included. A category hit only a few times a year must
+    // annualize to its true yearly total, not 12× its average ACTIVE month
+    // (which wildly overstates sporadic spending like travel or tuition).
     const presentMonths = allMonths.filter((mk) => monthMap.has(mk));
-    const magnitudes = presentMonths.map((mk) => Math.abs(monthMap.get(mk) ?? 0));
+    const magnitudes = allMonths.map((mk) => Math.abs(monthMap.get(mk) ?? 0));
     const m = mean(magnitudes);
     const s = std(magnitudes, m);
     const cov = m > 0 ? s / m : 0;

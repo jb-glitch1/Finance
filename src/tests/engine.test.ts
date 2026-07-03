@@ -76,6 +76,57 @@ describe("engine vs closed-form annuity", () => {
   });
 });
 
+// P0 regressions: withdrawal-strategy semantics and taxed shortfalls.
+describe("withdrawal strategy semantics", () => {
+  // Deterministic retiree: fixed return, no inflation, no taxes on the account
+  // type chosen, fixed $80k spending from a $1M portfolio (8% initial draw).
+  function retiree(
+    strategy: "fixed-real" | "guardrails" | "vpw",
+    accountType: "roth" | "traditional",
+    opts: { spend?: number; ret?: number; horizon?: number; vpwReturn?: number } = {},
+  ): Scenario {
+    const base = deterministicScenario(1_000_000, opts.ret ?? 0.05, opts.spend ?? 80_000, opts.horizon ?? 30);
+    base.accounts[0] = { ...base.accounts[0], id: accountType, type: accountType };
+    base.withdrawal = {
+      strategy,
+      initialRate: 0.04,
+      guardrailBand: 0.2,
+      guardrailAdjust: 0.1,
+      vpwReturn: opts.vpwReturn ?? 0,
+    };
+    return base;
+  }
+
+  it("guardrails genuinely cuts consumption and outlasts fixed-real", () => {
+    // 8% draw at 5% return: fixed-real must deplete (~year 20 of 30); guardrails
+    // flexes spending down until the rate re-enters the band and survives.
+    const fixed = runSimulation(retiree("fixed-real", "roth"));
+    const gk = runSimulation(retiree("guardrails", "roth"));
+    expect(fixed.successProbability).toBe(0);
+    expect(gk.successProbability).toBe(1);
+    // And the flex is real spending reduction, not an untaxed backfill: the
+    // guardrails path must end with MORE money, not equal.
+    expect(gk.terminalNetWorth[0]).toBeGreaterThan(fixed.terminalNetWorth[0] + 100_000);
+  });
+
+  it("shortfall pulls (VPW draw below expenses) are taxed like any withdrawal", () => {
+    // VPW with 0% assumed return over a 20y horizon draws 1/20 of the balance
+    // (~$25k) against $60k of spending — the rest flows through the shortfall
+    // path, which must be taxed for traditional accounts and tax-free for Roth.
+    const opts = { spend: 60_000, ret: 0, horizon: 20 };
+    const roth = runSimulation(retiree("vpw", "roth", opts));
+    const trad = runSimulation(retiree("vpw", "traditional", opts));
+    expect(roth.paths[0].totalTaxesPaid).toBe(0);
+    expect(trad.paths[0].totalTaxesPaid).toBeGreaterThan(20_000);
+    // Invariance: funding the same $60k/yr via fixed-real (fully taxed main
+    // path) must cost about the same lifetime tax as VPW + taxed shortfall.
+    const fixedTrad = runSimulation(retiree("fixed-real", "traditional", opts));
+    const a = trad.paths[0].totalTaxesPaid;
+    const b = fixedTrad.paths[0].totalTaxesPaid;
+    expect(Math.abs(a - b) / b).toBeLessThan(0.05);
+  });
+});
+
 describe("amortization closed-form", () => {
   it("30-year $100k @ 6% → payment ≈ $599.55", () => {
     expect(monthlyPayment(100000, 0.06, 360)).toBeCloseTo(599.55, 2);
