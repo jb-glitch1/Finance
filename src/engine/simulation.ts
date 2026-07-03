@@ -204,6 +204,8 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
   let totalTaxes = 0;
   // Persistent guardrail spending multiplier (Guyton-Klinger flexes the plan).
   let guardrailMultiplier = 1;
+  // Band anchor rate, resolved on the first retirement year (see below).
+  let guardrailAnchor: number | null = null;
   // Lifestyle-risk accumulators (spending cuts vs plan during retirement).
   let cutYears = 0;
   let maxCutDepth = 0;
@@ -240,9 +242,12 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
     // ---- Spending & debt service ----
     let spending = 0;
     const marketDown = m.stocks < 0;
+    // Planned retirement budget as a fraction of today's spending (a direct,
+    // user-adjustable lever — the dominant driver of lifestyle risk).
+    const retireFactor = retired ? scenario.retirementSpendingFactor ?? 1 : 1;
     for (const ex of scenario.expenses) {
       if (age < ex.startAge || age > ex.endAge) continue;
-      let amt = sample(ex.amount, rng);
+      let amt = sample(ex.amount, rng) * retireFactor;
       if (ex.inflationAdjust) amt *= cumInflation;
       if (marketDown && ex.discretionaryCutInDownturn) amt *= 1 - ex.discretionaryCutInDownturn;
       spending += amt;
@@ -314,7 +319,12 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
       const rate = grossWithdraw / portfolio;
       const band = scenario.withdrawal.guardrailBand ?? 0.2;
       const adjust = scenario.withdrawal.guardrailAdjust ?? 0.1;
-      const initial = scenario.withdrawal.initialRate;
+      // Anchor bands to the actual first-retirement-year rate (classic
+      // Guyton-Klinger) when requested; otherwise to the fixed initialRate.
+      if (guardrailAnchor === null) {
+        guardrailAnchor = scenario.withdrawal.anchorAtRetirement ? rate : scenario.withdrawal.initialRate;
+      }
+      const initial = guardrailAnchor;
       if (rate > initial * (1 + band)) guardrailMultiplier *= 1 - adjust;
       else if (rate < initial * (1 - band)) guardrailMultiplier *= 1 + adjust;
       // Floor = the user's maximum tolerable lifestyle cut (default 60%).

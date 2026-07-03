@@ -28,6 +28,13 @@ export interface WithdrawalParams {
    * risk — the engine makes that trade visible rather than hiding it.
    */
   maxSpendingCut?: number;
+  /**
+   * Classic Guyton-Klinger anchors the guardrail bands to the ACTUAL
+   * withdrawal rate in the first retirement year. When false (default), bands
+   * anchor to the fixed `initialRate`, which overstates cut frequency for
+   * plans that retire at a different spend rate than the reference.
+   */
+  anchorAtRetirement?: boolean;
   /** Real expected return used to build the VPW schedule (e.g. 0.03). */
   vpwReturn?: number;
 }

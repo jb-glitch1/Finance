@@ -101,6 +101,12 @@ export interface Scenario {
   withdrawal: WithdrawalParams;
   /** Age at which the primary person retires (income from work stops). */
   retirementAge: number;
+  /**
+   * Scales ALL expenses during retirement (1.0 = spend as today, 0.85 = plan a
+   * 15% leaner retirement budget). The single biggest lever on lifestyle risk —
+   * exposed as a slider so it can be explored directly.
+   */
+  retirementSpendingFactor?: number;
   /** Order to draw down accounts in retirement (tax-efficient default). */
   withdrawalOrder: AccountType[];
   settings: SimulationSettings;

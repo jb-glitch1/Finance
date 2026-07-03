@@ -42,17 +42,36 @@ export function PlanControls({ scenario, onChange }: Props) {
     <div className="controls">
       <Slider label="Retirement age" value={scenario.retirementAge} min={45} max={75} step={1} format={(v) => `${v}`} onChange={(v) => set({ retirementAge: v })} />
       <Slider label="Stock allocation (invested)" value={avgStocks} min={0} max={1} step={0.05} format={(v) => percent(v)} onChange={setStockWeight} />
+      <Slider
+        label="Retirement spending vs today"
+        value={scenario.retirementSpendingFactor ?? 1}
+        min={0.5}
+        max={1.2}
+        step={0.05}
+        format={(v) => percent(v)}
+        onChange={(v) => set({ retirementSpendingFactor: v })}
+      />
       <Slider label="Initial withdrawal rate" value={scenario.withdrawal.initialRate} min={0.02} max={0.08} step={0.0025} format={(v) => percent(v, 2)} onChange={(v) => setW({ initialRate: v })} />
       {scenario.withdrawal.strategy === "guardrails" && (
-        <Slider
-          label="Max tolerable spending cut"
-          value={scenario.withdrawal.maxSpendingCut ?? 0.6}
-          min={0}
-          max={0.6}
-          step={0.05}
-          format={(v) => percent(v)}
-          onChange={(v) => setW({ maxSpendingCut: v })}
-        />
+        <>
+          <Slider
+            label="Max tolerable spending cut"
+            value={scenario.withdrawal.maxSpendingCut ?? 0.6}
+            min={0}
+            max={0.6}
+            step={0.05}
+            format={(v) => percent(v)}
+            onChange={(v) => setW({ maxSpendingCut: v })}
+          />
+          <label className="field check" title="Classic Guyton-Klinger: guardrail bands anchor to your actual withdrawal rate in the first retirement year, rather than the fixed initial-rate setting.">
+            <span>Anchor guardrails at retirement-date rate</span>
+            <input
+              type="checkbox"
+              checked={scenario.withdrawal.anchorAtRetirement ?? false}
+              onChange={(e) => setW({ anchorAtRetirement: e.target.checked })}
+            />
+          </label>
+        </>
       )}
       <Slider label="Iterations" value={scenario.settings.iterations} min={200} max={100000} step={200} format={(v) => v.toLocaleString()} onChange={(v) => setSettings({ iterations: v })} />
 

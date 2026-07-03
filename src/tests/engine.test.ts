@@ -126,6 +126,30 @@ describe("withdrawal strategy semantics", () => {
     expect(cappedRes.lifestyleRisk.p90MaxDepth).toBeGreaterThan(0.2);
   });
 
+  it("retirementSpendingFactor scales retirement spending", () => {
+    // The unsustainable 8% draw becomes a sustainable 4% draw at factor 0.5:
+    // fixed-real flips from certain failure to certain success.
+    const full = retiree("fixed-real", "roth");
+    const half = retiree("fixed-real", "roth");
+    half.retirementSpendingFactor = 0.5;
+    expect(runSimulation(full).successProbability).toBe(0);
+    expect(runSimulation(half).successProbability).toBe(1);
+  });
+
+  it("anchorAtRetirement bases guardrail bands on the actual starting rate", () => {
+    // Anchored at the true 8% starting rate, no cut can trigger until the rate
+    // drifts above 9.6% — years later. With the fixed 4% anchor, cuts start
+    // immediately. Anchored paths must therefore see strictly fewer cut years.
+    const fixedAnchor = retiree("guardrails", "roth");
+    const anchored = retiree("guardrails", "roth");
+    anchored.withdrawal.anchorAtRetirement = true;
+    const a = runSimulation(anchored).paths[0];
+    const f = runSimulation(fixedAnchor).paths[0];
+    expect(a.spendingCutYears).toBeLessThan(f.spendingCutYears);
+    // First year can never be a cut year when anchored to the actual rate.
+    expect(a.spendingCutYears).toBeLessThan(30);
+  });
+
   it("reports lifestyle risk: guardrail cuts are tracked, fixed-real shows none", () => {
     // The 8%-draw guardrails path is forced into deep, sustained cuts: the
     // multiplier ratchets down ~10%/yr until the withdrawal rate re-enters the
