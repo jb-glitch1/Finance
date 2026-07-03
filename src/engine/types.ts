@@ -116,6 +116,28 @@ export interface PathResult {
   horizonAge: number;
   minNetWorth: number;
   totalTaxesPaid: number;
+  /** Retirement years spent below planned spending (adaptive strategies). */
+  spendingCutYears: number;
+  /** Deepest spending cut as a fraction of plan (0.35 = 35% below plan). */
+  maxSpendingCutDepth: number;
+  /** Longest consecutive run of years with a >20% spending cut. */
+  longestDeepCutYears: number;
+}
+
+/**
+ * Lifestyle risk: once spending is adaptive (guardrails), "ran out of money"
+ * mostly stops happening — the plan bends instead of breaking. The honest
+ * successor metric is how often, how deep, and how long spending gets cut.
+ */
+export interface LifestyleRisk {
+  /** P(at least one below-plan year in retirement). */
+  pAnyCut: number;
+  /** P(a >20% cut sustained for 3+ consecutive years). */
+  pDeepCut3yr: number;
+  /** Median number of retirement years spent below plan. */
+  medianYearsBelow: number;
+  /** 90th percentile of the deepest cut experienced (fraction of plan). */
+  p90MaxDepth: number;
 }
 
 export interface YearBand {
@@ -140,4 +162,6 @@ export interface SimulationResult {
   startAge: number;
   /** P(net worth ≥ goal.targetAmount at goal.targetAge), if a goal is set. */
   goalProbability?: number;
+  /** Spending-cut risk for adaptive withdrawal strategies (guardrails). */
+  lifestyleRisk: LifestyleRisk;
 }

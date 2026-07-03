@@ -109,6 +109,22 @@ describe("withdrawal strategy semantics", () => {
     expect(gk.terminalNetWorth[0]).toBeGreaterThan(fixed.terminalNetWorth[0] + 100_000);
   });
 
+  it("reports lifestyle risk: guardrail cuts are tracked, fixed-real shows none", () => {
+    // The 8%-draw guardrails path is forced into deep, sustained cuts: the
+    // multiplier ratchets down ~10%/yr until the withdrawal rate re-enters the
+    // band (a >20% cut held for many consecutive years).
+    const gk = runSimulation(retiree("guardrails", "roth"));
+    expect(gk.lifestyleRisk.pAnyCut).toBe(1);
+    expect(gk.lifestyleRisk.pDeepCut3yr).toBe(1);
+    expect(gk.lifestyleRisk.p90MaxDepth).toBeGreaterThan(0.2);
+    expect(gk.paths[0].longestDeepCutYears).toBeGreaterThanOrEqual(3);
+    // Fixed-real never flexes spending, so it must report zero lifestyle risk.
+    const fixed = runSimulation(retiree("fixed-real", "roth"));
+    expect(fixed.lifestyleRisk.pAnyCut).toBe(0);
+    expect(fixed.lifestyleRisk.pDeepCut3yr).toBe(0);
+    expect(fixed.lifestyleRisk.p90MaxDepth).toBe(0);
+  });
+
   it("shortfall pulls (VPW draw below expenses) are taxed like any withdrawal", () => {
     // VPW with 0% assumed return over a 20y horizon draws 1/20 of the balance
     // (~$25k) against $60k of spending — the rest flows through the shortfall

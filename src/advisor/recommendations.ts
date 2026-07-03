@@ -215,11 +215,19 @@ export function interpretResult(
     ? "Your single biggest risk factor is sequence-of-returns risk: a poor run of returns in the first decade of retirement drives most failure paths."
     : "Even the lower-decile outcomes retain a positive balance, suggesting the plan is resilient to a bad return sequence.";
 
+  // With adaptive spending, ruin probability understates the real risk: the
+  // plan bends (spending cuts) instead of breaking. Say so explicitly.
+  const lr = result.lifestyleRisk;
+  const lifestyleLine =
+    lr && lr.pAnyCut > 0.02 && scenario.withdrawal.strategy === "guardrails"
+      ? ` Because spending is adaptive, the risk shows up as lifestyle cuts rather than ruin: ${Math.round(lr.pAnyCut * 100)}% of paths see at least one guardrail cut, and ${Math.round(lr.pDeepCut3yr * 100)}% endure a >20% cut for 3+ consecutive years (deepest decile of cuts ≈ ${Math.round(lr.p90MaxDepth * 100)}% below plan).`
+      : "";
+
   return {
     id: "interpretation",
     title: "What the math implies",
     severity,
-    message: `${verdict} ${riskLine}`,
+    message: `${verdict} ${riskLine}${lifestyleLine}`,
     detail: `Median ending net worth ≈ $${Math.round(sortedTerminal[Math.floor(sortedTerminal.length / 2)]).toLocaleString()}. Lower-decile (P10) ending ≈ $${Math.round(p10).toLocaleString()}.`,
     assumptions: "Educational projection under your stated assumptions. Not financial advice; not a fiduciary recommendation.",
   };

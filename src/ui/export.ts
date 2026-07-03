@@ -16,9 +16,11 @@ function download(filename: string, content: string, type: string) {
 
 /** Raw per-iteration results as CSV for further analysis. */
 export function exportResultsCsv(result: SimulationResult) {
-  const header = "iteration,terminal_net_worth,success,ran_out_age,min_net_worth,total_taxes_paid";
+  const header =
+    "iteration,terminal_net_worth,success,ran_out_age,min_net_worth,total_taxes_paid,spending_cut_years,max_cut_depth,longest_deep_cut_years";
   const lines = result.paths.map(
-    (p, i) => `${i},${p.terminalNetWorth.toFixed(2)},${p.success ? 1 : 0},${p.ranOutAge ?? ""},${p.minNetWorth.toFixed(2)},${p.totalTaxesPaid.toFixed(2)}`,
+    (p, i) =>
+      `${i},${p.terminalNetWorth.toFixed(2)},${p.success ? 1 : 0},${p.ranOutAge ?? ""},${p.minNetWorth.toFixed(2)},${p.totalTaxesPaid.toFixed(2)},${p.spendingCutYears},${p.maxSpendingCutDepth.toFixed(3)},${p.longestDeepCutYears}`,
   );
   // Also append the percentile bands as a second block.
   const bandHeader = "\n\nage,p10,p25,p50,p75,p90,mean";
@@ -38,6 +40,7 @@ export function exportSummary(scenario: Scenario, result: SimulationResult) {
 <table>
 ${row("Probability money lasts" + (scenario.settings.stochasticLongevity ? " (to modeled lifespan)" : ` to age ${result.startAge + scenario.settings.horizonYears}`), percent(result.successProbability))}
 ${row("Probability of running short", percent(1 - result.successProbability))}
+${scenario.withdrawal.strategy === "guardrails" && result.lifestyleRisk ? row("Lifestyle risk: any guardrail cut / >20% cut for 3+ yrs", `${percent(result.lifestyleRisk.pAnyCut)} / ${percent(result.lifestyleRisk.pDeepCut3yr)}`) : ""}
 ${scenario.goal ? row(`Probability of goal (${currency(scenario.goal.targetAmount)} by ${scenario.goal.targetAge})`, result.goalProbability != null ? percent(result.goalProbability) : "—") : ""}
 ${row("Mean ending net worth", currency(s.mean))}
 ${row("Median (P50)", currency(s.median))}

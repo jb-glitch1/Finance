@@ -41,6 +41,22 @@ export function HeadlineStats({ result, scenario }: Props) {
           sub="probability of hitting goal"
         />
       )}
+      {scenario.withdrawal.strategy === "guardrails" && result.lifestyleRisk && (
+        <>
+          <Stat
+            label="Lifestyle risk: any spending cut in retirement"
+            value={percent(result.lifestyleRisk.pAnyCut)}
+            tone={result.lifestyleRisk.pAnyCut > 0.5 ? "warn" : undefined}
+            sub={`median ${result.lifestyleRisk.medianYearsBelow.toFixed(0)} yrs below plan`}
+          />
+          <Stat
+            label=">20% cut sustained 3+ years"
+            value={percent(result.lifestyleRisk.pDeepCut3yr)}
+            tone={result.lifestyleRisk.pDeepCut3yr > 0.25 ? "warn" : result.lifestyleRisk.pDeepCut3yr > 0.1 ? undefined : "good"}
+            sub={`deepest cut (P90): ${percent(result.lifestyleRisk.p90MaxDepth)}`}
+          />
+        </>
+      )}
       <Stat label="Median lifetime taxes paid" value={currency(percentile(result.paths.map((p) => p.totalTaxesPaid), 50), { compact: true })} sub="federal, nominal" />
     </div>
   );

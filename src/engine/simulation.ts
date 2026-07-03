@@ -204,6 +204,11 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
   let totalTaxes = 0;
   // Persistent guardrail spending multiplier (Guyton-Klinger flexes the plan).
   let guardrailMultiplier = 1;
+  // Lifestyle-risk accumulators (spending cuts vs plan during retirement).
+  let cutYears = 0;
+  let maxCutDepth = 0;
+  let deepStreak = 0;
+  let longestDeepStreak = 0;
   const trajectory: number[] = [];
   const status = scenario.filingStatus;
 
@@ -261,6 +266,20 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
     let plannedSpend = spending;
     if (retired && scenario.withdrawal.strategy === "guardrails") {
       plannedSpend = spending * guardrailMultiplier;
+    }
+    // Lifestyle-risk tracking: how far below the unflexed plan are we living?
+    if (retired && spending > 0) {
+      const depth = 1 - plannedSpend / spending;
+      if (depth > 0.005) {
+        cutYears++;
+        if (depth > maxCutDepth) maxCutDepth = depth;
+      }
+      if (depth >= 0.2) {
+        deepStreak++;
+        if (deepStreak > longestDeepStreak) longestDeepStreak = deepStreak;
+      } else {
+        deepStreak = 0;
+      }
     }
     const grossNeed = plannedSpend + debtService;
 
@@ -389,6 +408,9 @@ function simulatePath(scenario: Scenario, seed: number): PathResult & { trajecto
     horizonAge,
     minNetWorth: minNW === Infinity ? terminalNetWorth : minNW,
     totalTaxesPaid: totalTaxes,
+    spendingCutYears: cutYears,
+    maxSpendingCutDepth: maxCutDepth,
+    longestDeepCutYears: longestDeepStreak,
     trajectory,
   };
 }
@@ -447,6 +469,15 @@ export function runSimulation(scenario: Scenario, onProgress?: ProgressFn): Simu
     }
   }
 
+  const cutYearsSorted = paths.map((p) => p.spendingCutYears).sort((a, b) => a - b);
+  const maxDepthSorted = paths.map((p) => p.maxSpendingCutDepth).sort((a, b) => a - b);
+  const lifestyleRisk = {
+    pAnyCut: paths.filter((p) => p.spendingCutYears > 0).length / iterations,
+    pDeepCut3yr: paths.filter((p) => p.longestDeepCutYears >= 3).length / iterations,
+    medianYearsBelow: percentileSorted(cutYearsSorted, 50),
+    p90MaxDepth: percentileSorted(maxDepthSorted, 90),
+  };
+
   return {
     iterations,
     seed,
@@ -457,5 +488,6 @@ export function runSimulation(scenario: Scenario, onProgress?: ProgressFn): Simu
     depletionByAge: depletionCounts.map((c, y) => ({ age: startAge + y + 1, probability: c / iterations })),
     startAge,
     goalProbability,
+    lifestyleRisk,
   };
 }
